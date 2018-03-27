@@ -1,0 +1,76 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'spring-boot'
+apply plugin: 'jacoco'
+
+version = '1.4'
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+configurations {
+    all*.exclude module : 'spring-boot-starter-logging'
+}
+
+dependencies {
+    compile project(":domain")
+    compile project(":persistence")
+    compile project(":print")
+    compile project(":soap")
+    
+    compile project.ext.quartz
+    compile project.ext.springquartz 
+    
+    testCompile project.ext.junit
+    testCompile project.ext.mockito
+    testCompile project.ext.junitparams
+    testCompile project.ext.springtest
+}
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'Familia-Impresion',
+                   'Implementation-Version': version,
+                   'Main-Class': 'co.com.familia.printer.web.Application'
+    }
+    from {
+    	configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+  	}
+}
+
+test {
+	jacoco {
+		append = false
+		destinationFile = file("jacoco/jacocoTest.exec")
+	}
+	reports.junitXml.destination =  file("jacoco/test-results")
+}
+
+import org.gradle.api.tasks.Exec
+import org.apache.tools.ant.taskdefs.condition.Os
+
+task deleteStatic() {
+    delete '../web/src/main/resources/static'
+}
+
+task createStatic() {
+    mkdir '../web/src/main/resources/static'
+}
+
+task generateDist(type: Exec) {
+    workingDir '../frontend'
+    String command = Os.isFamily(Os.FAMILY_WINDOWS) ? "ng.cmd" : "ng"
+    commandLine command, 'build', '--prod'
+}
+
+task copyDist(type: Copy) {
+   from '../frontend/dist'
+   into '../web/src/main/resources/static'
+}
+
+jacocoTestReport.dependsOn(test)
+jar.dependsOn(jacocoTestReport)
+
+createStatic.dependsOn(deleteStatic)
+generateDist.dependsOn(createStatic)
+copyDist.dependsOn(generateDist)
+processResources.dependsOn(copyDist)
